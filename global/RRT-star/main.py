@@ -70,14 +70,24 @@ class RRTstar:
         #print('start_node')
         #print(self.node_list[0].loc[0])
         #print(self.node_list[0].loc[1])
-        target_point = self.targetPoint()
-        #print('target_node')
-        #print(target_point)
-        nearest_node_id = self.getNearestNodeIndex(target_point)
-        new_node = self.makeNewNode(target_point, nearest_node_id)
+        for i in range(1):
+            target_point = self.targetPoint()
+            #print('target_node')
+            #print(target_point)
+            nearest_node_id = self.getNearestNodeIndex(target_point)
+            new_node = self.makeNewNode(target_point, nearest_node_id)
+            if self.map.isValidArea(new_node.loc):
+                print('Valid')
+                #near_node_ids = self.find_near_nodes(new_node)
+                self.find_near_nodes(new_node)
 
-        if self.map.isValidArea(new_node.loc):
-            print('Valid')
+    def find_near_nodes(self, center_node):
+        n_nodes = len(self.node_list) + 2
+        search_rad = (self.maxX - self.minX) * np.sqrt(np.log(n_nodes)/n_nodes)
+        #search_rad = 5.0 * self.dl
+        print(search_rad)
+        distance_list = [np.linalg.norm(node.loc - center_node.loc)
+                for node in self.node_list]
 
     def makeNewNode(self, target_point, nearest_node_id):
         nearest_node = self.node_list[nearest_node_id]
