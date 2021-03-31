@@ -70,7 +70,7 @@ class RRTstar:
         #print('start_node')
         #print(self.node_list[0].loc[0])
         #print(self.node_list[0].loc[1])
-        for i in range(1):
+        for i in range(100):
             target_point = self.targetPoint()
             #print('target_node')
             #print(target_point)
@@ -78,16 +78,87 @@ class RRTstar:
             new_node = self.makeNewNode(target_point, nearest_node_id)
             if self.map.isValidArea(new_node.loc):
                 print('Valid')
-                #near_node_ids = self.find_near_nodes(new_node)
-                self.find_near_nodes(new_node)
+                near_node_ids = self.findNearNodes(new_node)
+                new_node = self.chooseParent(new_node, near_node_ids)
+                self.node_list.append(new_node)
+                self.connectNodes(new_node, near_node_ids)
 
-    def find_near_nodes(self, center_node):
+    def connectNodes(self, new_node, near_ids):
+        for near_id in near_ids:
+            near_node = self.node_list[near_id]
+            print('near_node.loc', near_node.loc)
+
+            relative_vector = near_node.loc - new_node.loc
+            length = np.linalg.norm(relative_vector)
+            angle = np.arctan2(relative_vector[1], relative_vector[0])
+
+            tmp_cost = new_node.cost + length
+            print('new_node.cost', new_node.cost)
+            print('tmp_cost', tmp_cost)
+
+            if (near_node.cost > tmp_cost) and (self.isValidEdge(near_node, length, angle)):
+                    near_node.parent = len(self.node_list) - 1
+                    near_node.cost = tmp_cost
+
+    def chooseParent(self, new_node, near_ids):
+        if len(near_ids) == 0:
+            new_node
+
+        distance_list = []
+        for near_id in near_ids:
+
+            relative_vector = self.node_list[near_id].loc - new_node.loc
+            length = np.linalg.norm(relative_vector)
+            angle = np.arctan2(relative_vector[1], relative_vector[0])
+
+            if self.isValidEdge(self.node_list[near_id], length, angle):
+                distance_list.append(self.node_list[near_id].cost + length)
+
+            else:
+                distance_list.append(np.inf)
+
+        print('distance_list', distance_list)
+        minimum_cost = min(distance_list)
+        minimum_id   = near_ids[distance_list.index(minimum_cost)]
+        #if minimum_cost == np.inf:
+        #    return new_node
+        #else:
+        #    new_node.cost = minimum_cost
+        #    new_node.parent = minimum_id
+        #    print(new_node.cost)
+        #    print(new_node.parent)
+        #    return new_node
+
+        if minimum_cost != np.inf:
+            # 絶対ここを通るはず
+            new_node.cost = minimum_cost
+            new_node.parent = minimum_id
+            print(new_node.cost)
+            print(new_node.parent)
+
+        return new_node
+
+
+    def isValidEdge(self, start_node, length, angle):
+        tmp_node = copy.deepcopy(start_node)
+
+        for i in range(int(length / self.dl)):
+            tmp_node.loc += self.dl * np.array([np.cos(angle), np.sin(angle)])
+            if not self.map.isValidArea(tmp_node.loc):
+                return False
+
+        return True
+
+    def findNearNodes(self, center_node):
         n_nodes = len(self.node_list) + 2
-        search_rad = (self.maxX - self.minX) * np.sqrt(np.log(n_nodes)/n_nodes)
+        search_rad = 10*(self.maxX - self.minX) * np.sqrt(np.log(n_nodes)/n_nodes)
         #search_rad = 5.0 * self.dl
         print(search_rad)
         distance_list = [np.linalg.norm(node.loc - center_node.loc)
                 for node in self.node_list]
+        near_ids = [distance_list.index(i) for i in distance_list if i <= search_rad]
+        print(near_ids)
+        return near_ids
 
     def makeNewNode(self, target_point, nearest_node_id):
         nearest_node = self.node_list[nearest_node_id]
@@ -114,13 +185,43 @@ class RRTstar:
             return np.array([
                 (self.maxX - self.minX) * np.random.rand() + self.minX,
                 (self.maxY - self.minY) * np.random.rand() + self.minY])
+
+    def render(self):
+        print('node_list', len(self.node_list))
+        fig, ax = plt.subplots(1,1)
+        def update(i):
+            if i%10 == 0: print(i, '/ {}'.format(100+3))
+            if i != 0:
+                plt.cla()
+
+            ax.set_xlim(self.minX, self.maxX)
+            ax.set_ylim(self.minY, self.maxY)
+            ax.set_xlabel(r'$x$')
+            ax.set_ylabel(r'$y$')
+            ax.set_aspect('equal')
+
+            for j in range(i):
+                node_0 = self.node_list[j].loc
+                if self.node_list[j].parent == None:
+                    continue
+                node_1 = self.node_list[self.node_list[j].parent].loc
+
+                x = np.array([node_0[0], node_1[0]])
+                y = np.array([node_0[1], node_1[1]])
+                ax.plot(x, y, marker='.', color='k')
+            ax.scatter(self.start_node.loc[0], self.start_node.loc[1], marker='o', color='r')
+            ax.scatter(self.goal_node.loc[0], self.goal_node.loc[1], marker='o', color='b')
+
+        ani = animation.FuncAnimation(fig, update, interval=400, frames=100)
+        ani.save('anim.mp4', writer='ffmpeg')
     
 def main():
    world_map = WorldMap()
-   start_location = np.array([-2.0, 2.0])
+   start_location = np.array([-2.0, -2.0])
    goal_location  = np.array([4.0, 4.0])
    planner = RRTstar(world_map, start_loc=start_location, goal_loc=goal_location)
    planner.solve()
+   planner.render()
 
 
 if __name__ == '__main__':
