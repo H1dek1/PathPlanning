@@ -14,10 +14,13 @@ class WorldMap:
         self.max_y =  5
 
         self.obstacles = []
-        #self.setObstacles(np.array([1.5, 1.5]), 1.5)
+        self.setObstacles(np.array([1.5, 1.2]), 1.0)
         #self.setObstacles(np.array([3.0, -1.5]), 1.0)
         #self.setObstacles(np.array([-2.0, 2.5]), 1.5)
         #self.setObstacles(np.array([0.0, -1.5]), 1.0)
+        self.obs_patches = []
+        for item in self.obstacles:
+            self.obs_patches.append(patches.Circle(xy=item['center'], radius=item['rad'], fc='k', fill=True))
 
     def isValidArea(self, loc):
         if (self.min_x < loc[0] < self.max_x) and (self.min_y < loc[1] < self.max_y):
@@ -34,6 +37,10 @@ class WorldMap:
 
     def getObstacles(self):
         return self.obstacles
+    
+    def drawMap(self, ax):
+        for item in self.obs_patches:
+            ax.add_patch(item)
 
 class Node():
     def __init__(self, loc):
@@ -51,7 +58,7 @@ class Node():
 class RRTstar:
     def __init__(self, map_, start_loc, goal_loc):
         # Hyper Parameters
-        self.dl = 0.2
+        self.dl = 0.5
         self.goal_sampling_rate = 0.3
 
         # Map Information
@@ -71,30 +78,33 @@ class RRTstar:
         #print(self.node_list[0].loc[0])
         #print(self.node_list[0].loc[1])
         for i in range(100):
-            target_point = self.targetPoint()
-            #print('target_node')
-            #print(target_point)
-            nearest_node_id = self.getNearestNodeIndex(target_point)
-            new_node = self.makeNewNode(target_point, nearest_node_id)
-            if self.map.isValidArea(new_node.loc):
-                print('Valid')
-                near_node_ids = self.findNearNodes(new_node)
-                new_node = self.chooseParent(new_node, near_node_ids)
-                self.node_list.append(new_node)
-                self.connectNodes(new_node, near_node_ids)
+            while True:
+                target_point = self.targetPoint()
+                nearest_node_id = self.getNearestNodeIndex(target_point)
+                new_node = self.makeNewNode(target_point, nearest_node_id)
+                if self.map.isValidArea(new_node.loc):
+                    break
+
+            near_node_ids = self.findNearNodes(new_node)
+            new_node = self.chooseParent(new_node, near_node_ids)
+            self.node_list.append(new_node)
+            self.connectNodes(new_node, near_node_ids)
+            if np.linalg.norm(new_node.loc - self.goal_node.loc) < self.dl:
+                near_node_ids = self.findNearNodes(self.goal_node)
+                self.goal_node = self.chooseParent(self.goal_node, near_node_ids)
+                self.node_list.append(self.goal_node)
+                print('GOAL', len(self.node_list))
+                break
 
     def connectNodes(self, new_node, near_ids):
         for near_id in near_ids:
             near_node = self.node_list[near_id]
-            print('near_node.loc', near_node.loc)
 
             relative_vector = near_node.loc - new_node.loc
             length = np.linalg.norm(relative_vector)
             angle = np.arctan2(relative_vector[1], relative_vector[0])
 
             tmp_cost = new_node.cost + length
-            print('new_node.cost', new_node.cost)
-            print('tmp_cost', tmp_cost)
 
             if (near_node.cost > tmp_cost) and (self.isValidEdge(near_node, length, angle)):
                     near_node.parent = len(self.node_list) - 1
@@ -117,24 +127,13 @@ class RRTstar:
             else:
                 distance_list.append(np.inf)
 
-        print('distance_list', distance_list)
         minimum_cost = min(distance_list)
         minimum_id   = near_ids[distance_list.index(minimum_cost)]
-        #if minimum_cost == np.inf:
-        #    return new_node
-        #else:
-        #    new_node.cost = minimum_cost
-        #    new_node.parent = minimum_id
-        #    print(new_node.cost)
-        #    print(new_node.parent)
-        #    return new_node
 
         if minimum_cost != np.inf:
             # 絶対ここを通るはず
             new_node.cost = minimum_cost
             new_node.parent = minimum_id
-            print(new_node.cost)
-            print(new_node.parent)
 
         return new_node
 
@@ -153,11 +152,11 @@ class RRTstar:
         n_nodes = len(self.node_list) + 2
         search_rad = 10*(self.maxX - self.minX) * np.sqrt(np.log(n_nodes)/n_nodes)
         #search_rad = 5.0 * self.dl
-        print(search_rad)
+        #print(search_rad)
         distance_list = [np.linalg.norm(node.loc - center_node.loc)
                 for node in self.node_list]
         near_ids = [distance_list.index(i) for i in distance_list if i <= search_rad]
-        print(near_ids)
+        #print(near_ids)
         return near_ids
 
     def makeNewNode(self, target_point, nearest_node_id):
@@ -169,7 +168,7 @@ class RRTstar:
         new_node.cost += self.dl
         new_node.parent = nearest_node_id
 
-        new_node.printInfo()
+        #new_node.printInfo()
         return new_node
 
     def getNearestNodeIndex(self, target_point):
@@ -188,9 +187,10 @@ class RRTstar:
 
     def render(self):
         print('node_list', len(self.node_list))
+        n_frames = len(self.node_list)
         fig, ax = plt.subplots(1,1)
         def update(i):
-            if i%10 == 0: print(i, '/ {}'.format(100+3))
+            if i%10 == 0: print(i, '/ {}'.format(n_frames))
             if i != 0:
                 plt.cla()
 
@@ -199,6 +199,7 @@ class RRTstar:
             ax.set_xlabel(r'$x$')
             ax.set_ylabel(r'$y$')
             ax.set_aspect('equal')
+            self.map.drawMap(ax)
 
             for j in range(i):
                 node_0 = self.node_list[j].loc
@@ -212,7 +213,7 @@ class RRTstar:
             ax.scatter(self.start_node.loc[0], self.start_node.loc[1], marker='o', color='r')
             ax.scatter(self.goal_node.loc[0], self.goal_node.loc[1], marker='o', color='b')
 
-        ani = animation.FuncAnimation(fig, update, interval=400, frames=100)
+        ani = animation.FuncAnimation(fig, update, interval=400, frames=n_frames)
         ani.save('anim.mp4', writer='ffmpeg')
     
 def main():
