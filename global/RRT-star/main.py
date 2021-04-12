@@ -14,13 +14,13 @@ class WorldMap:
         self.max_y =  5
 
         self.obstacles = []
-        self.setObstacles(np.array([1.5, 1.2]), 1.0)
+        self.setObstacles(np.array([0., 0.]), 2.0)
         #self.setObstacles(np.array([3.0, -1.5]), 1.0)
         #self.setObstacles(np.array([-2.0, 2.5]), 1.5)
         #self.setObstacles(np.array([0.0, -1.5]), 1.0)
         self.obs_patches = []
         for item in self.obstacles:
-            self.obs_patches.append(patches.Circle(xy=item['center'], radius=item['rad'], fc='k', fill=True))
+            self.obs_patches.append(patches.Circle(xy=item['center'], radius=item['rad'], fc='orange', fill=True))
 
     def isValidArea(self, loc):
         if (self.min_x < loc[0] < self.max_x) and (self.min_y < loc[1] < self.max_y):
@@ -77,15 +77,20 @@ class RRTstar:
         #print('start_node')
         #print(self.node_list[0].loc[0])
         #print(self.node_list[0].loc[1])
-        for i in range(100):
+        for i in range(1):
             while True:
-                target_point = self.targetPoint()
+                #target_point = self.targetPoint()
+                #nearest_node_id = self.getNearestNodeIndex(target_point)
+                #new_node = self.makeNewNode(target_point, nearest_node_id)
+
+                target_point = self.goal_node.loc
                 nearest_node_id = self.getNearestNodeIndex(target_point)
-                new_node = self.makeNewNode(target_point, nearest_node_id)
+                new_node = Node(self.goal_node.loc)
                 if self.map.isValidArea(new_node.loc):
                     break
 
             near_node_ids = self.findNearNodes(new_node)
+            print('node_list', self.node_list)
             new_node = self.chooseParent(new_node, near_node_ids)
             self.node_list.append(new_node)
             self.connectNodes(new_node, near_node_ids)
@@ -134,6 +139,8 @@ class RRTstar:
             # 絶対ここを通るはず
             new_node.cost = minimum_cost
             new_node.parent = minimum_id
+        else:
+            pass
 
         return new_node
 
@@ -222,7 +229,7 @@ def main():
    goal_location  = np.array([4.0, 4.0])
    planner = RRTstar(world_map, start_loc=start_location, goal_loc=goal_location)
    planner.solve()
-   planner.render()
+   #planner.render()
 
 
 if __name__ == '__main__':
